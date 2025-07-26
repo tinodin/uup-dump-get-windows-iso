@@ -19,11 +19,19 @@ $TARGETS = @{
         search = "windows 11 22631 amd64"
         edition = "Professional"
         virtualEdition = $null
+        ring = "RETAIL"
     }
     "24H2" = @{
         search = "windows 11 26100 amd64"
         edition = "Professional"
         virtualEdition = $null
+        ring = "RETAIL"
+    }
+    "25H2" = @{
+        search = "windows 11 26200 amd64"
+        edition = "Professional"
+        virtualEdition = $null
+        ring = "WIF"
     }
 }
 
@@ -97,7 +105,7 @@ function Get-UupDumpIso($name, $target) {
             $ring = $_.Value.info.ring
             $langs = $_.Value.langs.PSObject.Properties.Name
             $editions = $_.Value.editions.PSObject.Properties.Name
-            $expectedRing = 'RETAIL'
+            $expectedRing = $target.ring
 
             ($ring -eq $expectedRing) -and
             ($langs -contains 'en-us') -and
