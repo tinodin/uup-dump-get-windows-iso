@@ -20,18 +20,21 @@ $TARGETS = @{
         edition = "Professional"
         virtualEdition = $null
         ring = "RETAIL"
+        preview = $false
     }
     "24H2" = @{
         search = "windows 11 26100 amd64"
         edition = "Professional"
         virtualEdition = $null
         ring = "RETAIL"
+        preview = $false
     }
     "25H2" = @{
         search = "windows 11 26200 amd64"
         edition = "Professional"
         virtualEdition = $null
         ring = "WIF"
+        preview = $true
     }
 }
 
@@ -68,9 +71,11 @@ function Get-UupDumpIso($name, $target) {
             $_
         } `
         | Where-Object {
-            $result = $target.search -like '*preview*' -or $_.Value.title -notlike '*preview*'
-            if (!$result) {
-                Write-Host "Skipping. Expected preview=false. Got preview=true."
+            $isPreview = $_.Value.title -like '*preview*'
+            $expectedPreview = if ($target.PSObject.Properties.Name -contains 'preview') { $target.preview } else { $false }
+            $result = ($expectedPreview -eq $isPreview)
+            if (-not $result) {
+                Write-Host "Skipping. Expected preview=$expectedPreview. Got preview=$isPreview."
             }
             $result
         } `
