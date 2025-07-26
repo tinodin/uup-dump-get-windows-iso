@@ -1,0 +1,44 @@
+name: 25H2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: 25H2
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      # log the available disk space, so we can inspect it later.
+      # NB GitHub-hosted runners have limited available disk space.
+      #    see https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
+      - name: Show available disk space before build
+        run: Get-PSDrive -PSProvider FileSystem
+      # NB we are writting outside of the current working/job directory
+      #    because it does not have sufficient available disk space.
+      - name: Build
+        run: pwsh uup-dump-get-windows-iso.ps1 25H2 c:/output
+      - name: Show available disk space after build
+        run: Get-PSDrive -PSProvider FileSystem
+      - name: Build summary
+        run: |
+          $iso = Get-Content (Resolve-Path c:/output/*.json) | ConvertFrom-Json
+          Add-Content $env:GITHUB_STEP_SUMMARY @"
+          | Property | Value |
+          | :--- | :--- |
+          | Name | $($iso.name) |
+          | Build | $($iso.build) |
+          | Checkum | $($iso.checksum) |
+          $($iso.images | ForEach-Object {"| Image Name #$($_.index) | $($_.name) |"})
+          | UUP dump | [$($iso.title)]($($iso.uupDump.downloadUrl)) |
+          "@
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 25H2
+          path: |
+            c:/output/*.json
+            c:/output/*.iso
+            c:/output/*.iso.sha256.txt
