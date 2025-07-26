@@ -72,7 +72,7 @@ function Get-UupDumpIso($name, $target) {
         } `
         | Where-Object {
             $isPreview = $_.Value.title -like '*preview*'
-            $expectedPreview = if ($target.PSObject.Properties.Name -contains 'preview') { $target.preview } else { $false }
+            $expectedPreview = $target.preview
             $result = ($expectedPreview -eq $isPreview)
             if (-not $result) {
                 Write-Host "Skipping. Expected preview=$expectedPreview. Got preview=$isPreview."
