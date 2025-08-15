@@ -29,9 +29,8 @@ jobs:
           | :--- | :--- |
           | Name | $($iso.name) |
           | Build | $($iso.build) |
-          | Checkum | $($iso.checksum) |
-          $($iso.images | ForEach-Object {"| Image Name #$($_.index) | $($_.name) |"})
-          | UUP dump | [$($iso.title)]($($iso.uupDump.downloadUrl)) |
+          | Checksum | $($iso.checksum) |
+          | Image Name | $($iso.images[0].name) |
           "@
 
       - name: Upload artifact
