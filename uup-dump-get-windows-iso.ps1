@@ -33,7 +33,7 @@ $TARGETS = @{
         search = "windows 11 26200 amd64"
         edition = "Professional"
         virtualEdition = $null
-        ring = "WIF"
+        ring = "RP"
         preview = $true
     }
 }
