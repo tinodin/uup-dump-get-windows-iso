@@ -34,7 +34,7 @@ $TARGETS = @{
         edition = "Professional"
         virtualEdition = $null
         ring = "RP"
-        preview = $true
+        preview = $false
     }
 }
 
