@@ -19,7 +19,7 @@ $TARGETS = @{
         search = "windows 11 22631 amd64"
         edition = "Professional"
         virtualEdition = $null
-        ring = "RP"
+        ring = "Retail"
         preview = $false
     }
     "24H2" = @{
