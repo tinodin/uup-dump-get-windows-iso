@@ -194,8 +194,7 @@ function Get-WindowsIso($name, $destinationDirectory) {
         -replace '^(AutoExit\s*)=.*','$1=1' `
         -replace '^(Cleanup\s*)=.*','$1=1' `
         -replace '^(NetFx3\s*)=.*','$1=1' `
-        -replace '^(ResetBase\s*)=.*','$1=1' `
-        -replace '^(SkipWinRE\s*)=.*','$1=1'
+        -replace '^(ResetBase\s*)=.*','$1=1'
 
     Set-Content -Encoding ascii -Path $buildDirectory/ConvertConfig.ini -Value $convertConfig
 
