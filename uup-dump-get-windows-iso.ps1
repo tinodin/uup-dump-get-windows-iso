@@ -232,7 +232,7 @@ function Get-WindowsIso($name, $destinationDirectory) {
     Write-Host "Moving ISO to $destinationIsoPath"
     Move-Item -Force $sourceIsoPath $destinationIsoPath
 
-    Write-Host 'All Done.'
+    Write-Host 'All Done.' 
 }
 
 Get-WindowsIso $windowsTargetName $destinationDirectory
