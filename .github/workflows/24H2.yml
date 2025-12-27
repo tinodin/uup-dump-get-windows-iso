@@ -2,6 +2,9 @@ name: 24H2
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
