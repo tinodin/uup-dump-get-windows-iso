@@ -1,9 +1,7 @@
 name: 25H2
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+
 jobs:
   build:
     name: 25H2
