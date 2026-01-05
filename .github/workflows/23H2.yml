@@ -37,12 +37,15 @@ jobs:
       - name: Install rclone
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri https://downloads.rclone.org/rclone-current-windows-amd64.zip -OutFile rclone.zip
-          Expand-Archive rclone.zip -DestinationPath .
-          $env:PATH += ";$PWD\rclone-*-windows-amd64"
+          Invoke-WebRequest https://downloads.rclone.org/rclone-current-windows-amd64.zip -OutFile rclone.zip
+          Expand-Archive rclone.zip -DestinationPath rclone
+          $rcloneDir = Get-ChildItem rclone -Directory | Select-Object -First 1
+          echo "RCLONE_PATH=$($rcloneDir.FullName)\rclone.exe" >> $env:GITHUB_ENV
 
       - name: Configure rclone
         shell: pwsh
+        env:
+          GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
         run: |
           $configPath = "$env:USERPROFILE\.config\rclone\rclone.conf"
           New-Item -ItemType Directory -Path (Split-Path $configPath) -Force | Out-Null
@@ -50,9 +53,9 @@ jobs:
           [gdrive]
           type = drive
           token = $env:GDRIVE_TOKEN
-          "@ | Set-Content -Path $configPath
+          "@ | Set-Content $configPath
 
-      - name: Upload to Google Drive
+      - name: Upload output to Google Drive
         shell: pwsh
         run: |
-          .\rclone.exe copy c:/output gdrive:23H2 --drive-chunk-size 64M --progress
+          & "$env:RCLONE_PATH" copy c:/output gdrive:23H2 --drive-chunk-size 64M --progress
