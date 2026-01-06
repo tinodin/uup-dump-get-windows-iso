@@ -55,13 +55,13 @@ jobs:
           token = $env:GDRIVE_TOKEN
           "@ | Set-Content $configPath
 
-      - name: Upload selected files to Google Drive
+      - name: Upload output to Google Drive
         shell: pwsh
         run: |
-          & "$env:RCLONE_PATH" copy c:/output gdrive:23H2 `
+          & "$env:RCLONE_PATH" copy "c:/output" gdrive:23H2 `
             --include "*.json" `
             --include "*.iso" `
             --include "*.iso.sha256.txt" `
-            --drive-chunk-size 64M `
+            --drive-upload-cutoff 1000T `
             --progress
 
