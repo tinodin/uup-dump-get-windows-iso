@@ -42,6 +42,18 @@ jobs:
           $rcloneDir = Get-ChildItem rclone -Directory | Select-Object -First 1
           echo "RCLONE_PATH=$($rcloneDir.FullName)\rclone.exe" >> $env:GITHUB_ENV
 
+      - name: Configure rclone (service account)
+        shell: pwsh
+        run: |
+          $configPath = "$env:APPDATA\rclone\rclone.conf"
+          New-Item -ItemType Directory -Path (Split-Path $configPath) -Force | Out-Null
+      
+          @"
+          [gdrive]
+          type = drive
+          scope = drive
+          "@ | Set-Content -Encoding utf8 $configPath
+
       - name: Upload output to Google Drive
         shell: pwsh
         env:
