@@ -42,23 +42,15 @@ jobs:
           $rcloneDir = Get-ChildItem rclone -Directory | Select-Object -First 1
           echo "RCLONE_PATH=$($rcloneDir.FullName)\rclone.exe" >> $env:GITHUB_ENV
 
-      - name: Configure rclone
-        shell: pwsh
-        env:
-          GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
-        run: |
-          $configPath = "$env:USERPROFILE\.config\rclone\rclone.conf"
-          New-Item -ItemType Directory -Path (Split-Path $configPath) -Force | Out-Null
-          @"
-          [gdrive]
-          type = drive
-          token = $env:GDRIVE_TOKEN
-          "@ | Set-Content $configPath
-
       - name: Upload output to Google Drive
         shell: pwsh
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
         run: |
-          & "$env:RCLONE_PATH" copy "c:/output" gdrive:23H2 `
+          $jsonPath = "$env:USERPROFILE\service-account.json"
+          $SERVICE_ACCOUNT_JSON | Out-File -FilePath $jsonPath -Encoding utf8
+          & "$env:RCLONE_PATH" copy "c:/output" gdrive:ISO `
+            --drive-service-account-file $jsonPath `
             --include "*.json" `
             --include "*.iso" `
             --include "*.iso.sha256.txt" `
