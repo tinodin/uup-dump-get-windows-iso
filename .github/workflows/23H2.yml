@@ -61,11 +61,12 @@ jobs:
         run: |
           $jsonPath = "$env:USERPROFILE\service-account.json"
           $SERVICE_ACCOUNT_JSON | Out-File -FilePath $jsonPath -Encoding utf8
+      
           & "$env:RCLONE_PATH" copy "c:/output" gdrive:ISO `
+            --drive-use-service-account `
             --drive-service-account-file $jsonPath `
             --include "*.json" `
             --include "*.iso" `
             --include "*.iso.sha256.txt" `
             --drive-upload-cutoff 1000T `
             --progress
-
