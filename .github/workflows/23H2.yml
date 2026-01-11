@@ -19,8 +19,7 @@ jobs:
         run: Get-PSDrive -PSProvider FileSystem
 
       - name: Build
-        shell: pwsh
-        run: uup-dump-get-windows-iso.ps1 23H2 c:/output
+        run: pwsh uup-dump-get-windows-iso.ps1 23H2 c:/output
 
       - name: Show available disk space after build
         shell: pwsh
