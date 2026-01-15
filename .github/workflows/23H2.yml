@@ -63,12 +63,17 @@ jobs:
             --include "*.iso" `
             --include "*.iso.sha256.txt" `
             --progress
-
-      - name: Generate public links for all uploaded files
+      
+      - name: Generate public links
         shell: pwsh
         run: |
-          Get-ChildItem c:/output | ForEach-Object {
-              $link = & "$env:RCLONE_PATH" link mega:/23H2/$($_.Name)
-              Write-Output "$($_.Name): $link"
-              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "$($_.Name): $link"
+          Get-ChildItem c:/output -File | Where-Object {
+              $_.Extension -in ".iso", ".json", ".txt"
+          } | ForEach-Object {
+              $remote = "mega:/23H2/$($_.Name)"
+              $link = & "$env:RCLONE_PATH" link $remote 2>$null
+              if ($LASTEXITCODE -eq 0) {
+                  "$($_.Name): $link"
+                  Add-Content $env:GITHUB_STEP_SUMMARY "$($_.Name): $link"
+              }
           }
