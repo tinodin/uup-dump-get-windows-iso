@@ -9,24 +9,20 @@ on:
 jobs:
   build-and-upload:
     runs-on: windows-2022
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
       - name: Show available disk space before build
-        shell: pwsh
         run: Get-PSDrive -PSProvider FileSystem
 
       - name: Build
         run: pwsh uup-dump-get-windows-iso.ps1 23H2 c:/output
 
       - name: Show available disk space after build
-        shell: pwsh
         run: Get-PSDrive -PSProvider FileSystem
 
       - name: Build summary
-        shell: pwsh
         run: |
           $iso = Get-Content (Resolve-Path c:/output/*.json) | ConvertFrom-Json
           Add-Content $env:GITHUB_STEP_SUMMARY @"
@@ -46,34 +42,25 @@ jobs:
           $rcloneDir = Get-ChildItem rclone -Directory | Select-Object -First 1
           echo "RCLONE_PATH=$($rcloneDir.FullName)\rclone.exe" >> $env:GITHUB_ENV
 
-      - name: Configure MEGA remote
+      - name: Configure rclone
         shell: pwsh
         env:
-          MEGA_USER: ${{ secrets.MEGA_USER }}
-          MEGA_PASS: ${{ secrets.MEGA_PASS }}
+          GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
         run: |
-          # Create MEGA remote dynamically
-          & "$env:RCLONE_PATH" config create mega mega user $env:MEGA_USER pass $env:MEGA_PASS --non-interactive
+          $configPath = "$env:USERPROFILE\.config\rclone\rclone.conf"
+          New-Item -ItemType Directory -Path (Split-Path $configPath) -Force | Out-Null
+          @"
+          [gdrive]
+          type = drive
+          token = $env:GDRIVE_TOKEN
+          "@ | Set-Content $configPath
 
-      - name: Upload all output to MEGA
+      - name: Upload output to Google Drive
         shell: pwsh
         run: |
-          & "$env:RCLONE_PATH" copy "c:/output" mega:/23H2 `
+          & "$env:RCLONE_PATH" copy "c:/output" gdrive:23H2 `
             --include "*.json" `
             --include "*.iso" `
             --include "*.iso.sha256.txt" `
+            --drive-upload-cutoff 1000T `
             --progress
-      
-      - name: Generate public links
-        shell: pwsh
-        run: |
-          Get-ChildItem c:/output -File | Where-Object {
-              $_.Extension -in ".iso", ".json", ".txt"
-          } | ForEach-Object {
-              $remote = "mega:/23H2/$($_.Name)"
-              $link = & "$env:RCLONE_PATH" link $remote 2>$null
-              if ($LASTEXITCODE -eq 0) {
-                  "$($_.Name): $link"
-                  Add-Content $env:GITHUB_STEP_SUMMARY "$($_.Name): $link"
-              }
-          }
