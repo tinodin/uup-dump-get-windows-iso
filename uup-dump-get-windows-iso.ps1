@@ -125,7 +125,7 @@ function Get-UupDumpIso($name, $target) {
                 build = $_.Value.build
                 id = $id
                 edition = $target.edition
-                virtualEdition = $null
+                virtualEdition = $target.virtualEdition
                 apiUrl = 'https://api.uupdump.net/get.php?' + (New-QueryString @{
                     id = $id; lang = 'en-us'; edition = $target.edition
                 })
