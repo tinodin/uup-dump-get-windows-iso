@@ -55,7 +55,7 @@ jobs:
       - name: Upload output to Google Drive
         shell: pwsh
         run: |
-          & "$env:RCLONE_PATH" copy "c:/output" "gdrive:23H2 Enterprise" `
+          & "$env:RCLONE_PATH" copy "c:/output" "gdrive:23H2" `
             --include "*.json" `
             --include "*.iso" `
             --include "*.iso.sha256.txt" `
