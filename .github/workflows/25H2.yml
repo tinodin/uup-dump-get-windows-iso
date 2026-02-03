@@ -1,25 +1,24 @@
 name: 25H2
+
 on:
   workflow_dispatch:
-
+  
 jobs:
-  build:
-    name: 25H2
+  build-and-upload:
     runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-      # log the available disk space, so we can inspect it later.
-      # NB GitHub-hosted runners have limited available disk space.
-      #    see https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
+
       - name: Show available disk space before build
         run: Get-PSDrive -PSProvider FileSystem
-      # NB we are writting outside of the current working/job directory
-      #    because it does not have sufficient available disk space.
+
       - name: Build
         run: pwsh uup-dump-get-windows-iso.ps1 25H2 c:/output
+
       - name: Show available disk space after build
         run: Get-PSDrive -PSProvider FileSystem
+
       - name: Build summary
         run: |
           $iso = Get-Content (Resolve-Path c:/output/*.json) | ConvertFrom-Json
@@ -32,11 +31,33 @@ jobs:
           | Image Name | $($iso.images[0].name) |
           "@
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: 25H2
-          path: |
-            c:/output/*.json
-            c:/output/*.iso
-            c:/output/*.iso.sha256.txt
+      - name: Install rclone
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://downloads.rclone.org/rclone-current-windows-amd64.zip -OutFile rclone.zip
+          Expand-Archive rclone.zip -DestinationPath rclone
+          $rcloneDir = Get-ChildItem rclone -Directory | Select-Object -First 1
+          echo "RCLONE_PATH=$($rcloneDir.FullName)\rclone.exe" >> $env:GITHUB_ENV
+
+      - name: Configure rclone
+        shell: pwsh
+        env:
+          GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
+        run: |
+          $configPath = "$env:USERPROFILE\.config\rclone\rclone.conf"
+          New-Item -ItemType Directory -Path (Split-Path $configPath) -Force | Out-Null
+          @"
+          [gdrive]
+          type = drive
+          token = $env:GDRIVE_TOKEN
+          "@ | Set-Content $configPath
+
+      - name: Upload output to Google Drive
+        shell: pwsh
+        run: |
+          & "$env:RCLONE_PATH" copy "c:/output" "gdrive:25H2" `
+            --include "*.json" `
+            --include "*.iso" `
+            --include "*.iso.sha256.txt" `
+            --drive-upload-cutoff 1000T `
+            --progress
