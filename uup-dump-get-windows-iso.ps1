@@ -69,7 +69,7 @@ function Get-UupDumpIso($name, $target) {
     Write-Host "Getting the $name metadata"
     if ($target.PSObject.Properties.Name -contains 'uuid') {
         $id = $target.uuid
-        Write-Host "Using pinned UUID for $name: $id"
+        Write-Host "Using pinned UUID for ${name}: $id"
     
         $result = Invoke-UupDumpApi listlangs @{ id = $id }
         $build = $result.response.updateInfo.build
