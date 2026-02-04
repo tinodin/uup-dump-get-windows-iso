@@ -77,132 +77,96 @@ function Get-UupDumpIso($name, $target) {
     }
 
     $result = Invoke-UupDumpApi listid $query
-    $result.response.builds.PSObject.Properties `
-        | ForEach-Object {
-            $id = $_.Value.uuid
-            $uupDumpUrl = 'https://uupdump.net/selectlang.php?' + (New-QueryString @{
-                id = $id
-            })
-            Write-Host "Processing $name $id ($uupDumpUrl)"
-            $_
-        } `
-        | Where-Object {
-            # ignore previews when they are not explicitly requested.
-            $result = $target.search -like '*preview*' -or $_.Value.title -notlike '*preview*'
-            if (!$result) {
-                Write-Host "Skipping. Expected preview=false. Got preview=true."
-            }
-            $result
-        } `
-        | ForEach-Object {
-            # get more information about the build. eg:
-            #   "langs": {
-            #     "en-us": "English (United States)",
-            #     "pt-pt": "Portuguese (Portugal)",
-            #     ...
-            #   },
-            #   "info": {
-            #     "title": "Feature update to Microsoft server operating system, version 21H2 (20348.643)",
-            #     "ring": "RETAIL",
-            #     "flight": "Active",
-            #     "arch": "amd64",
-            #     "build": "20348.643",
-            #     "checkBuild": "10.0.20348.1",
-            #     "sku": 8,
-            #     "created": 1649783041,
-            #     "sha256ready": true
-            #   }
-            $id = $_.Value.uuid
-            Write-Host "Getting the $name $id langs metadata"
-            $result = Invoke-UupDumpApi listlangs @{
-                id = $id
-            }
-            if ($result.response.updateInfo.build -ne $_.Value.build) {
-                throw 'for some reason listlangs returned an unexpected build'
-            }
-            $_.Value | Add-Member -NotePropertyMembers @{
-                langs = $result.response.langFancyNames
-                info = $result.response.updateInfo
-            }
-            $langs = $_.Value.langs.PSObject.Properties.Name
-            $editions = if ($langs -contains 'en-us') {
-                Write-Host "Getting the $name $id editions metadata"
-                $result = Invoke-UupDumpApi listeditions @{
-                    id = $id
-                    lang = 'en-us'
-                }
-                $result.response.editionFancyNames
-            } else {
-                Write-Host "Skipping. Expected langs=en-us. Got langs=$($langs -join ',')."
-                [PSCustomObject]@{}
-            }
-            $_.Value | Add-Member -NotePropertyMembers @{
-                editions = $editions
-            }
-            $_
-        } `
-        | Where-Object {
-            # only return builds that:
-            #   1. are from the expected ring/channel (default retail)
-            #   2. have the english language
-            #   3. match the requested edition
-            $ring = $_.Value.info.ring
-            $langs = $_.Value.langs.PSObject.Properties.Name
-            $editions = $_.Value.editions.PSObject.Properties.Name
-            $result = $true
-            $expectedRing = if ($target.PSObject.Properties.Name -contains 'ring') {
-                $target.ring
-            } else {
-                'RETAIL'
-            }
-            if ($ring -ne $expectedRing) {
-                Write-Host "Skipping. Expected ring=$expectedRing. Got ring=$ring."
-                $result = $false
-            }
-            if ($langs -notcontains 'en-us') {
-                Write-Host "Skipping. Expected langs=en-us. Got langs=$($langs -join ',')."
-                $result = $false
-            }
-            if ($editions -notcontains $target.edition) {
-                Write-Host "Skipping. Expected editions=$($target.edition). Got editions=$($editions -join ',')."
-                $result = $false
-            }
-            $result
-        } `
-        | Select-Object -First 1 `
-        | ForEach-Object {
-            $id = $_.Value.uuid
-            [PSCustomObject]@{
-                name = $name
-                title = $_.Value.title
-                build = $_.Value.build
-                id = $id
-                edition = $target.edition
-                virtualEdition = $target.virtualEdition
-                apiUrl = 'https://api.uupdump.net/get.php?' + (New-QueryString @{
-                    id = $id
-                    lang = 'en-us'
-                    edition = $target.edition
-                    #noLinks = '1' # do not return the files download urls.
-                })
-                downloadUrl = 'https://uupdump.net/download.php?' + (New-QueryString @{
-                    id = $id
-                    pack = 'en-us'
-                    edition = $target.edition
-                })
-                # NB you must use the HTTP POST method to invoke this packageUrl
-                #    AND in the body you must include:
-                #           autodl=2 updates=1 cleanup=1
-                #           OR
-                #           autodl=3 updates=1 cleanup=1 virtualEditions[]=Enterprise
-                downloadPackageUrl = 'https://uupdump.net/get.php?' + (New-QueryString @{
-                    id = $id
-                    pack = 'en-us'
-                    edition = $target.edition
-                })
-            }
-        }
+
+    # pick only the exact build/UUID if specified
+    $resultBuild = if ($target.PSObject.Properties.Name -contains 'build') {
+        $result.response.builds.PSObject.Properties | Where-Object { $_.Value.build -eq $target.build } | Select-Object -First 1
+    } elseif ($target.PSObject.Properties.Name -contains 'uuid') {
+        $result.response.builds.PSObject.Properties | Where-Object { $_.Value.uuid -eq $target.uuid } | Select-Object -First 1
+    } else {
+        $result.response.builds.PSObject.Properties | Select-Object -First 1
+    }
+
+    if (-not $resultBuild) {
+        throw "Could not find the requested build/UUID for $name"
+    }
+
+    $id = $resultBuild.Value.uuid
+    $uupDumpUrl = 'https://uupdump.net/selectlang.php?' + (New-QueryString @{ id = $id })
+    Write-Host "Processing $name $id ($uupDumpUrl)"
+
+    # get more information about the build. eg:
+    #   "langs": {
+    #     "en-us": "English (United States)",
+    #     "pt-pt": "Portuguese (Portugal)",
+    #     ...
+    #   },
+    #   "info": {
+    #     "title": "Feature update to Microsoft server operating system, version 21H2 (20348.643)",
+    #     "ring": "RETAIL",
+    #     "flight": "Active",
+    #     "arch": "amd64",
+    #     "build": "20348.643",
+    #     "checkBuild": "10.0.20348.1",
+    #     "sku": 8,
+    #     "created": 1649783041,
+    #     "sha256ready": true
+    #   }
+    Write-Host "Getting the $name $id langs metadata"
+    $langsResult = Invoke-UupDumpApi listlangs @{ id = $id }
+
+    if ($langsResult.response.updateInfo.build -ne $resultBuild.Value.build) {
+        throw 'for some reason listlangs returned an unexpected build'
+    }
+
+    $resultBuild.Value | Add-Member -NotePropertyMembers @{
+        langs = $langsResult.response.langFancyNames
+        info  = $langsResult.response.updateInfo
+    }
+
+    $langs = $resultBuild.Value.langs.PSObject.Properties.Name
+
+    $editions = if ($langs -contains 'en-us') {
+        Write-Host "Getting the $name $id editions metadata"
+        $editionsResult = Invoke-UupDumpApi listeditions @{ id = $id; lang = 'en-us' }
+        $editionsResult.response.editionFancyNames
+    } else {
+        Write-Host "Skipping. Expected langs=en-us. Got langs=$($langs -join ',')."
+        [PSCustomObject]@{}
+    }
+
+    $resultBuild.Value | Add-Member -NotePropertyMembers @{ editions = $editions }
+
+    # only return builds that:
+    #   1. are from the expected ring/channel (default retail)
+    #   2. have the english language
+    #   3. match the requested edition
+    $ring = $resultBuild.Value.info.ring
+    $editionsNames = $resultBuild.Value.editions.PSObject.Properties.Name
+    if ($ring -ne $target.ring -or $langs -notcontains 'en-us' -or $editionsNames -notcontains $target.edition) {
+        Write-Host "Skipping. Expected ring=$($target.ring), langs=en-us, editions=$($target.edition). Got ring=$ring, langs=$($langs -join ','), editions=$($editionsNames -join ',')."
+        throw "Build $id does not match target ring/lang/edition requirements"
+    }
+
+    # return the final object
+    [PSCustomObject]@{
+        name               = $name
+        title              = $resultBuild.Value.title
+        build              = $resultBuild.Value.build
+        id                 = $id
+        edition            = $target.edition
+        virtualEdition     = $target.virtualEdition
+        apiUrl             = 'https://api.uupdump.net/get.php?' + (New-QueryString @{ id = $id; lang = 'en-us'; edition = $target.edition })
+        downloadUrl        = 'https://uupdump.net/download.php?' + (New-QueryString @{ id = $id; pack = 'en-us'; edition = $target.edition })
+        # NB you must use the HTTP POST method to invoke this packageUrl
+        #    AND in the body you must include:
+        #           autodl=2 updates=1 cleanup=1
+        #           OR
+        #           autodl=3 updates=1 cleanup=1 virtualEditions[]=Enterprise
+        downloadPackageUrl = 'https://uupdump.net/get.php?' + (New-QueryString @{ id = $id; pack = 'en-us'; edition = $target.edition })
+    }
 }
+
 
 function Get-IsoWindowsImages($isoPath) {
     $isoPath = Resolve-Path $isoPath
