@@ -68,7 +68,7 @@ function Get-UupDumpIso($name, $target) {
     if ($name -eq '24H2') {
         # force 24H2 to use the known UUID
         $id = 'd727e3b6-343f-422c-bfd4-43b64bbfd1f9'
-        Write-Host "Using forced UUID for $name: $id"
+        Write-Host "Using forced UUID for ${name}: $id"
         return [PSCustomObject]@{
             name = $name
             title = "$name $($target.edition)"
