@@ -66,14 +66,15 @@ function Invoke-UupDumpApi([string]$name, [hashtable]$body) {
 }
 
 function Get-UupDumpIso($name, $target) {
-    Write-Host "Getting the $name metadata"
+
+    # --- UUID pinning block FIRST ---
     if ($target.PSObject.Properties.Name -contains 'uuid') {
         $id = $target.uuid
         Write-Host "Using pinned UUID for ${name}: $id"
-    
+
         $result = Invoke-UupDumpApi listlangs @{ id = $id }
-        $build = $result.response.updateInfo.build
-    
+        $build  = $result.response.updateInfo.build
+
         return [PSCustomObject]@{
             name = $name
             title = "$name $($target.edition) $build"
@@ -98,6 +99,8 @@ function Get-UupDumpIso($name, $target) {
             })
         }
     }
+
+    Write-Host "Getting the $name metadata"
     $result = Invoke-UupDumpApi listid @{
         search = $target.search
     }
