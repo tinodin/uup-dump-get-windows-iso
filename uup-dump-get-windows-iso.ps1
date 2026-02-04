@@ -28,7 +28,7 @@ $TARGETS = @{
         virtualEdition = $null
         ring = "Retail"
         preview = $false
-        uuid = "13f2d59a-faca-40c7-90ae-8537904c9708"
+        build = "26100.7628" 
     }
     "25H2" = @{
         search = "windows 11 26200 amd64"
@@ -66,44 +66,17 @@ function Invoke-UupDumpApi([string]$name, [hashtable]$body) {
 }
 
 function Get-UupDumpIso($name, $target) {
-
-    # --- UUID pinning block FIRST ---
-    if ($target.PSObject.Properties.Name -contains 'uuid') {
-        $id = $target.uuid
-        Write-Host "Using pinned UUID for ${name}: $id"
-
-        $result = Invoke-UupDumpApi listlangs @{ id = $id }
-        $build  = $result.response.updateInfo.build
-
-        return [PSCustomObject]@{
-            name = $name
-            title = "$name $($target.edition) $build"
-            build = $build
-            id = $id
-            edition = $target.edition
-            virtualEdition = $target.virtualEdition
-            apiUrl = 'https://api.uupdump.net/get.php?' + (New-QueryString @{
-                id = $id
-                lang = 'en-us'
-                edition = $target.edition
-            })
-            downloadUrl = 'https://uupdump.net/download.php?' + (New-QueryString @{
-                id = $id
-                pack = 'en-us'
-                edition = $target.edition
-            })
-            downloadPackageUrl = 'https://uupdump.net/get.php?' + (New-QueryString @{
-                id = $id
-                pack = 'en-us'
-                edition = $target.edition
-            })
-        }
-    }
-
     Write-Host "Getting the $name metadata"
-    $result = Invoke-UupDumpApi listid @{
-        search = $target.search
+
+    $query = if ($target.PSObject.Properties.Name -contains 'build') {
+        @{ search = $target.build }
+    } elseif ($target.PSObject.Properties.Name -contains 'uuid') {
+        @{ id = $target.uuid }
+    } else {
+        @{ search = $target.search }
     }
+
+    $result = Invoke-UupDumpApi listid $query
     $result.response.builds.PSObject.Properties `
         | ForEach-Object {
             $id = $_.Value.uuid
