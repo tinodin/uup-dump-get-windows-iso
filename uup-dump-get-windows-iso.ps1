@@ -216,6 +216,29 @@ function Get-WindowsIso($name, $destinationDirectory) {
         throw "unexpected $name build: $($iso.build)"
     }
 
+    if ($env:RCLONE_PATH) {
+        Write-Host "Checking if build $($iso.build) is already on Google Drive..."
+        $gdriveJsonPath = "gdrive:$name/$name.iso.json"
+        try {
+            $existingJsonContent = & $env:RCLONE_PATH cat $gdriveJsonPath 2>$null
+            if ($LASTEXITCODE -eq 0 -and $existingJsonContent) {
+                $existingJson = $existingJsonContent | ConvertFrom-Json
+                if ($existingJson.build -eq $iso.build) {
+                    Write-Host "Build $($iso.build) already exists on Google Drive ($($existingJson.title)). Skipping build."
+                    if ($env:GITHUB_OUTPUT) {
+                        "skipped=true" | Add-Content -Path $env:GITHUB_OUTPUT
+                    }
+                    exit 0
+                }
+                Write-Host "Existing build on Google Drive is $($existingJson.build), but current build is $($iso.build). Proceeding with build."
+            } else {
+                Write-Host "No existing build metadata found on Google Drive. Proceeding with build."
+            }
+        } catch {
+            Write-Host "Failed to check for existing build on Google Drive."
+        }
+    }
+
     $buildDirectory = "$destinationDirectory/$name"
     $destinationIsoPath = "$buildDirectory.iso"
     $destinationIsoMetadataPath = "$destinationIsoPath.json"

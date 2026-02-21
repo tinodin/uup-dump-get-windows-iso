@@ -2,6 +2,8 @@ name: 25H2
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
   
 jobs:
   build-and-upload:
@@ -12,24 +14,6 @@ jobs:
 
       - name: Show available disk space before build
         run: Get-PSDrive -PSProvider FileSystem
-
-      - name: Build
-        run: pwsh uup-dump-get-windows-iso.ps1 25H2 c:/output
-
-      - name: Show available disk space after build
-        run: Get-PSDrive -PSProvider FileSystem
-
-      - name: Build summary
-        run: |
-          $iso = Get-Content (Resolve-Path c:/output/*.json) | ConvertFrom-Json
-          Add-Content $env:GITHUB_STEP_SUMMARY @"
-          | Property | Value |
-          | :--- | :--- |
-          | Name | $($iso.name) |
-          | Build | $($iso.build) |
-          | Checksum | $($iso.checksum) |
-          | Image Name | $($iso.images[0].name) |
-          "@
 
       - name: Install rclone
         shell: pwsh
@@ -52,7 +36,28 @@ jobs:
           token = $env:GDRIVE_TOKEN
           "@ | Set-Content $configPath
 
+      - name: Build
+        id: build
+        run: pwsh uup-dump-get-windows-iso.ps1 25H2 c:/output
+
+      - name: Show available disk space after build
+        run: Get-PSDrive -PSProvider FileSystem
+
+      - name: Build summary
+        if: steps.build.outputs.skipped != 'true'
+        run: |
+          $iso = Get-Content (Resolve-Path c:/output/*.json) | ConvertFrom-Json
+          Add-Content $env:GITHUB_STEP_SUMMARY @"
+          | Property | Value |
+          | :--- | :--- |
+          | Name | $($iso.name) |
+          | Build | $($iso.build) |
+          | Checksum | $($iso.checksum) |
+          | Image Name | $($iso.images[0].name) |
+          "@
+
       - name: Upload output to Google Drive
+        if: steps.build.outputs.skipped != 'true'
         shell: pwsh
         run: |
           & "$env:RCLONE_PATH" copy "c:/output" "gdrive:25H2" `
