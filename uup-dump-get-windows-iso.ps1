@@ -324,6 +324,15 @@ function Get-WindowsIso($name, $destinationDirectory) {
 
     $windowsImages = Get-IsoWindowsImages $sourceIsoPath
 
+    $version = '10.0.26100.1742'
+    if ($windowsImages | Where-Object { $_.version -eq $version }) {
+        Write-Host "Build $($iso.build) contains image with forbidden version $version. Skipping upload."
+        if ($env:GITHUB_OUTPUT) {
+            "skipped=true" | Add-Content -Path $env:GITHUB_OUTPUT
+        }
+        return
+    }
+
     # create the iso metadata file.
     Set-Content `
         -Path $destinationIsoMetadataPath `
