@@ -56,6 +56,15 @@ jobs:
           | Image Name | $($iso.images[0].name) |
           "@
 
+      - name: Delete old files from Google Drive
+        if: steps.build.outputs.skipped != 'true'
+        shell: pwsh
+        run: |
+          & "$env:RCLONE_PATH" delete "gdrive:25H2" `
+            --include "*.iso" `
+            --include "*.json" `
+            --include "*.iso.sha256.txt"
+
       - name: Upload output to Google Drive
         if: steps.build.outputs.skipped != 'true'
         shell: pwsh
