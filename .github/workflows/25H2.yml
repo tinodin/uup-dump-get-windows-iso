@@ -63,7 +63,8 @@ jobs:
           & "$env:RCLONE_PATH" delete "gdrive:25H2" `
             --include "*.iso" `
             --include "*.json" `
-            --include "*.iso.sha256.txt"
+            --include "*.iso.sha256.txt" `
+            --drive-use-trash=false
 
       - name: Upload output to Google Drive
         if: steps.build.outputs.skipped != 'true'
@@ -74,4 +75,5 @@ jobs:
             --include "*.iso" `
             --include "*.iso.sha256.txt" `
             --drive-upload-cutoff 1000T `
+            --drive-use-trash=false `
             --progress
