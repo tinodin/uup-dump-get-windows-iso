@@ -301,6 +301,15 @@ function Get-WindowsIso($name, $destinationDirectory) {
         -Value $convertConfig
 
     Write-Host "Creating the $title iso file inside the $buildDirectory directory"
+    
+    # Retry loop to handle HTTP 429 Rate Limits
+    $cmdContent = Get-Content -Path $buildDirectory/uup_download_windows.cmd -Raw
+    $cmdContent = [regex]::Replace($cmdContent, 
+        '(?mi)^"\%aria2\%".*?-o"\%aria2Script\%".*?"(https://uupdump\.net/get\.php.*?)".*$',
+        'powershell -Command "for ($i=0; $i -lt 15; $i++) { try { Invoke-WebRequest -Uri ''$1'' -OutFile ''%aria2Script%''; exit 0 } catch { Write-Host ''Retrying API due to rate limit...''; Start-Sleep 15 } }; exit 1"'
+    )
+    Set-Content -Encoding ascii -NoNewline -Path $buildDirectory/uup_download_windows.cmd -Value $cmdContent
+
     Push-Location $buildDirectory
     # NB we have to use powershell cmd to workaround:
     #       https://github.com/PowerShell/PowerShell/issues/6850
