@@ -17,6 +17,7 @@ trap {
 $TARGETS = @{
     "25H2" = @{
         search = "windows 11 26200 amd64"
+        id = "b2afa3be-e5ab-4327-a5f9-f6583c29eb61"
         edition = "Professional"
         virtualEdition = $null
         ring = "Retail"
@@ -52,6 +53,61 @@ function Invoke-UupDumpApi([string]$name, [hashtable]$body) {
 
 function Get-UupDumpIso($name, $target) {
     Write-Host "Getting the $name metadata"
+
+    if ($target.id) {
+        $id = $target.id
+        $uupDumpUrl = 'https://uupdump.net/selectlang.php?' + (New-QueryString @{
+            id = $id
+        })
+        Write-Host "Using override id $id ($uupDumpUrl)"
+
+        Write-Host "Getting the $name $id langs metadata"
+        $result = Invoke-UupDumpApi listlangs @{
+            id = $id
+        }
+        $info = $result.response.updateInfo
+        $langs = $result.response.langFancyNames
+
+        if ($langs.PSObject.Properties.Name -notcontains 'en-us') {
+            throw "Override build $id does not have the en-us language."
+        }
+
+        Write-Host "Getting the $name $id editions metadata"
+        $editionsResult = Invoke-UupDumpApi listeditions @{
+            id = $id
+            lang = 'en-us'
+        }
+        $editions = $editionsResult.response.editionFancyNames
+
+        if ($editions.PSObject.Properties.Name -notcontains $target.edition) {
+            throw "Override build $id does not have the $($target.edition) edition."
+        }
+
+        return [PSCustomObject]@{
+            name = $name
+            title = $info.title
+            build = $info.build
+            id = $id
+            edition = $target.edition
+            virtualEdition = $target.virtualEdition
+            apiUrl = 'https://api.uupdump.net/get.php?' + (New-QueryString @{
+                id = $id
+                lang = 'en-us'
+                edition = $target.edition
+            })
+            downloadUrl = 'https://uupdump.net/download.php?' + (New-QueryString @{
+                id = $id
+                pack = 'en-us'
+                edition = $target.edition
+            })
+            downloadPackageUrl = 'https://uupdump.net/get.php?' + (New-QueryString @{
+                id = $id
+                pack = 'en-us'
+                edition = $target.edition
+            })
+        }
+    }
+
     $result = Invoke-UupDumpApi listid @{
         search = $target.search
     }

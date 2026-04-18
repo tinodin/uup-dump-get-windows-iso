@@ -2,15 +2,15 @@ name: 25H2
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 3 * * *"
+  # schedule:
+  #   - cron: "0 3 * * *"
   
 jobs:
   build-and-upload:
     runs-on: windows-2022
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Show available disk space before build
         run: Get-PSDrive -PSProvider FileSystem
