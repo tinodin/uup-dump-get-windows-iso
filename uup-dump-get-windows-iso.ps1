@@ -122,7 +122,8 @@ function Get-UupDumpIso($name, $target) {
         } `
         | Where-Object {
             # ignore previews when they are not explicitly requested.
-            $result = $target.search -like '*preview*' -or $_.Value.title -notlike '*preview*'
+            $preview = if ($target.Contains('preview') -and $target.preview) { $true } elseif ($target.search -like '*preview*') { $true } else { $false }
+            $result = $preview -or $_.Value.title -notlike '*preview*'
             if (!$result) {
                 Write-Host "Skipping. Expected preview=false. Got preview=true."
             }
@@ -184,7 +185,7 @@ function Get-UupDumpIso($name, $target) {
             $langs = $_.Value.langs.PSObject.Properties.Name
             $editions = $_.Value.editions.PSObject.Properties.Name
             $result = $true
-            $expectedRing = if ($target.PSObject.Properties.Name -contains 'ring') {
+            $expectedRing = if ($target.Contains('ring')) {
                 $target.ring
             } else {
                 'RETAIL'
