@@ -20,8 +20,8 @@ $TARGETS = @{
         id = $null
         edition = "Professional"
         virtualEdition = $null
-        ring = "RP"
-        preview = $true
+        ring = "Retail"
+        preview = $false
     }
 }
 
