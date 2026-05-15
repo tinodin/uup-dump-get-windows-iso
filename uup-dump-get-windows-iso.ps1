@@ -66,9 +66,13 @@ function Get-UupDumpIso($name, $target) {
             id = $id
         }
         $info = $result.response.updateInfo
-        $langs = $result.response.langFancyNames
+        $langs = if ($result.response.langFancyNames -is [System.Management.Automation.PSCustomObject]) {
+            @($result.response.langFancyNames.PSObject.Properties | ForEach-Object { $_.Name })
+        } else {
+            @()
+        }
 
-        if ($langs.PSObject.Properties.Name -notcontains 'en-us') {
+        if ($langs -notcontains 'en-us') {
             throw "Override build $id does not have the en-us language."
         }
 
@@ -77,9 +81,13 @@ function Get-UupDumpIso($name, $target) {
             id = $id
             lang = 'en-us'
         }
-        $editions = $editionsResult.response.editionFancyNames
+        $editions = if ($editionsResult.response.editionFancyNames -is [System.Management.Automation.PSCustomObject]) {
+            @($editionsResult.response.editionFancyNames.PSObject.Properties | ForEach-Object { $_.Name })
+        } else {
+            @()
+        }
 
-        if ($editions.PSObject.Properties.Name -notcontains $target.edition) {
+        if ($editions -notcontains $target.edition) {
             throw "Override build $id does not have the $($target.edition) edition."
         }
 
@@ -111,7 +119,12 @@ function Get-UupDumpIso($name, $target) {
     $result = Invoke-UupDumpApi listid @{
         search = $target.search
     }
-    $result.response.builds.PSObject.Properties `
+    $builds = if ($result.response.builds -is [System.Management.Automation.PSCustomObject]) {
+        $result.response.builds.PSObject.Properties
+    } else {
+        @()
+    }
+    $builds `
         | ForEach-Object {
             $id = $_.Value.uuid
             $uupDumpUrl = 'https://uupdump.net/selectlang.php?' + (New-QueryString @{
@@ -126,6 +139,10 @@ function Get-UupDumpIso($name, $target) {
             $result = $preview -or $_.Value.title -notlike '*preview*'
             if (!$result) {
                 Write-Host "Skipping. Expected preview=false. Got preview=true."
+            }
+            if ($_.Value.title -like '*Update for*' -and $_.Value.title -notlike '*Feature update*') {
+                Write-Host "Skipping. Build seems to be an update, not a full OS: $($_.Value.title)"
+                $result = $false
             }
             $result
         } `
@@ -159,7 +176,11 @@ function Get-UupDumpIso($name, $target) {
                 langs = $result.response.langFancyNames
                 info = $result.response.updateInfo
             }
-            $langs = $_.Value.langs.PSObject.Properties.Name
+            $langs = if ($_.Value.langs -is [System.Management.Automation.PSCustomObject]) {
+                @($_.Value.langs.PSObject.Properties | ForEach-Object { $_.Name })
+            } else {
+                @()
+            }
             $editions = if ($langs -contains 'en-us') {
                 Write-Host "Getting the $name $id editions metadata"
                 $result = Invoke-UupDumpApi listeditions @{
@@ -168,7 +189,11 @@ function Get-UupDumpIso($name, $target) {
                 }
                 $result.response.editionFancyNames
             } else {
-                Write-Host "Skipping. Expected langs=en-us. Got langs=$($langs -join ',')."
+                if ($langs) {
+                    Write-Host "Skipping. Expected langs=en-us. Got langs=$($langs -join ',')."
+                } else {
+                    Write-Host "Skipping. No languages found."
+                }
                 [PSCustomObject]@{}
             }
             $_.Value | Add-Member -NotePropertyMembers @{
@@ -182,8 +207,16 @@ function Get-UupDumpIso($name, $target) {
             #   2. have the english language
             #   3. match the requested edition
             $ring = $_.Value.info.ring
-            $langs = $_.Value.langs.PSObject.Properties.Name
-            $editions = $_.Value.editions.PSObject.Properties.Name
+            $langs = if ($_.Value.langs -is [System.Management.Automation.PSCustomObject]) {
+                @($_.Value.langs.PSObject.Properties | ForEach-Object { $_.Name })
+            } else {
+                @()
+            }
+            $editions = if ($_.Value.editions -is [System.Management.Automation.PSCustomObject]) {
+                @($_.Value.editions.PSObject.Properties | ForEach-Object { $_.Name })
+            } else {
+                @()
+            }
             $result = $true
             $expectedRing = if ($target.Contains('ring')) {
                 $target.ring
@@ -195,11 +228,19 @@ function Get-UupDumpIso($name, $target) {
                 $result = $false
             }
             if ($langs -notcontains 'en-us') {
-                Write-Host "Skipping. Expected langs=en-us. Got langs=$($langs -join ',')."
+                if ($langs) {
+                    Write-Host "Skipping. Expected langs=en-us. Got langs=$($langs -join ',')."
+                } else {
+                    Write-Host "Skipping. No languages found."
+                }
                 $result = $false
             }
             if ($editions -notcontains $target.edition) {
-                Write-Host "Skipping. Expected editions=$($target.edition). Got editions=$($editions -join ',')."
+                if ($editions) {
+                    Write-Host "Skipping. Expected editions=$($target.edition). Got editions=$($editions -join ',')."
+                } else {
+                    Write-Host "Skipping. No editions found."
+                }
                 $result = $false
             }
             $result
