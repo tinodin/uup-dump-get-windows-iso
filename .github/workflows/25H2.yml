@@ -11,8 +11,8 @@ on:
         options:
           - 'build'
           - 'copy-only'
-  schedule:
-    - cron: "0 3 * * *"
+  # schedule:
+  #   - cron: "0 3 * * *"
   
 jobs:
   build-and-upload:
