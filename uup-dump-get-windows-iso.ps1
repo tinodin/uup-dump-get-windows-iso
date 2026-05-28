@@ -1,7 +1,10 @@
 #!/usr/bin/pwsh
 param(
     [string]$windowsTargetName,
-    [string]$destinationDirectory='output'
+    [string]$destinationDirectory='output',
+    [string]$rcloneRemote='gdrive',
+    [string]$rcloneProdRemote=$null,
+    [switch]$copyOnly
 )
 
 Set-StrictMode -Version Latest
@@ -17,7 +20,7 @@ trap {
 $TARGETS = @{
     "25H2" = @{
         search = "windows 11 26200 amd64"
-        id = "a90228a3-2053-4f31-b869-beee46792f50"
+        id = $null
         edition = "Professional"
         virtualEdition = $null
         ring = "RP"
@@ -306,6 +309,116 @@ function Get-IsoWindowsImages($isoPath) {
     }
 }
 
+function Upload-ToRclone($localPath, $remotePath) {
+    if (!$env:RCLONE_PATH) {
+        Write-Host "RCLONE_PATH not set. Skipping upload of $localPath"
+        return
+    }
+    Write-Host "Uploading $localPath to $remotePath"
+    & $env:RCLONE_PATH copy $localPath $remotePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to upload $localPath to $remotePath"
+    }
+}
+
+function Copy-FromTestToProduction($name, $testRemote, $prodRemote) {
+    Write-Host "Copying ISO from $testRemote to $prodRemote..."
+    & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso" "$prodRemote`:$name/"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to copy ISO from test to production"
+    }
+    Write-Host "Copying metadata from $testRemote to $prodRemote..."
+    & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso.json" "$prodRemote`:$name/"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to copy metadata from test to production"
+    }
+    Write-Host "Copying checksum from $testRemote to $prodRemote..."
+    & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso.sha256.txt" "$prodRemote`:$name/"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to copy checksum from test to production"
+    }
+    Write-Host "Copy from test to production complete."
+}
+
+function Copy-OnlyMode($name, $testRemote, $prodRemote, $destinationDirectory) {
+    if (!$env:RCLONE_PATH) {
+        throw "RCLONE_PATH not set. Copy-only mode requires rclone."
+    }
+    if (!$prodRemote) {
+        throw "Production remote not specified. Copy-only mode requires both test and production remotes."
+    }
+
+    Write-Host "Copy-only mode: Checking if build exists on test account ($testRemote)..."
+    $testJsonPath = "$testRemote`:$name/$name.iso.json"
+    try {
+        $testJsonContent = & $env:RCLONE_PATH cat $testJsonPath 2>$null
+        if ($LASTEXITCODE -ne 0 -or !$testJsonContent) {
+            throw "Build not found on test account. Cannot proceed with copy-only mode."
+        }
+        $testJson = $testJsonContent | ConvertFrom-Json
+        Write-Host "Build $($testJson.build) found on test account."
+
+        # Check if it already exists on production
+        Write-Host "Checking if build exists on production account ($prodRemote)..."
+        $prodJsonPath = "$prodRemote`:$name/$name.iso.json"
+        try {
+            $prodJsonContent = & $env:RCLONE_PATH cat $prodJsonPath 2>$null
+            if ($LASTEXITCODE -eq 0 -and $prodJsonContent) {
+                $prodJson = $prodJsonContent | ConvertFrom-Json
+                if ($prodJson.build -eq $testJson.build) {
+                    Write-Host "Build $($testJson.build) already exists on production account. Skipping copy."
+                    return
+                }
+                Write-Host "Production has build $($prodJson.build), test has build $($testJson.build). Proceeding with copy."
+            } else {
+                Write-Host "Build not found on production account. Proceeding with copy."
+            }
+        } catch {
+            Write-Host "Failed to check production account. Proceeding with copy."
+        }
+
+        # Download from test to local
+        $buildDirectory = "$destinationDirectory/$name"
+        if (Test-Path $buildDirectory) {
+            Remove-Item -Force -Recurse $buildDirectory | Out-Null
+        }
+        New-Item -ItemType Directory -Force $buildDirectory | Out-Null
+
+        Write-Host "Downloading ISO from test account..."
+        & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso" "$buildDirectory/"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to download ISO from test account"
+        }
+
+        Write-Host "Downloading metadata from test account..."
+        & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso.json" "$buildDirectory/"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to download metadata from test account"
+        }
+
+        Write-Host "Downloading checksum from test account..."
+        & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso.sha256.txt" "$buildDirectory/"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to download checksum from test account"
+        }
+
+        # Upload to production
+        Write-Host "Uploading to production account..."
+        $localIsoPath = "$buildDirectory/$name.iso"
+        $localJsonPath = "$buildDirectory/$name.iso.json"
+        $localChecksumPath = "$buildDirectory/$name.iso.sha256.txt"
+
+        Upload-ToRclone $localIsoPath "$prodRemote`:$name/"
+        Upload-ToRclone $localJsonPath "$prodRemote`:$name/"
+        Upload-ToRclone $localChecksumPath "$prodRemote`:$name/"
+
+        Write-Host "Copy from test to production complete."
+
+    } catch {
+        throw "Copy-only mode failed: $_"
+    }
+}
+
 function Get-WindowsIso($name, $destinationDirectory) {
     $iso = Get-UupDumpIso $name $TARGETS.$name
 
@@ -315,8 +428,8 @@ function Get-WindowsIso($name, $destinationDirectory) {
     }
 
     if ($env:RCLONE_PATH) {
-        Write-Host "Checking if build $($iso.build) is already on Google Drive..."
-        $gdriveJsonPath = "gdrive:$name/$name.iso.json"
+        Write-Host "Checking if build $($iso.build) is already on Google Drive ($rcloneRemote)..."
+        $gdriveJsonPath = "$rcloneRemote`:$name/$name.iso.json"
         try {
             $existingJsonContent = & $env:RCLONE_PATH cat $gdriveJsonPath 2>$null
             if ($LASTEXITCODE -eq 0 -and $existingJsonContent) {
@@ -462,7 +575,62 @@ function Get-WindowsIso($name, $destinationDirectory) {
     Write-Host "Moving the created $sourceIsoPath to $destinationIsoPath"
     Move-Item -Force $sourceIsoPath $destinationIsoPath
 
+    # Upload to the specified remote (test or prod)
+    if ($env:RCLONE_PATH) {
+        Write-Host "Uploading ISO and metadata to $rcloneRemote..."
+        Upload-ToRclone $destinationIsoPath "$rcloneRemote`:$name/"
+        Upload-ToRclone $destinationIsoMetadataPath "$rcloneRemote`:$name/"
+        Upload-ToRclone $destinationIsoChecksumPath "$rcloneRemote`:$name/"
+        Write-Host "Upload to $rcloneRemote complete."
+    }
+
+    # If production remote is specified, check test and copy to production
+    if ($rcloneProdRemote -and $env:RCLONE_PATH) {
+        Write-Host "Checking if build exists on test account ($rcloneRemote)..."
+        $testJsonPath = "$rcloneRemote`:$name/$name.iso.json"
+        try {
+            $testJsonContent = & $env:RCLONE_PATH cat $testJsonPath 2>$null
+            if ($LASTEXITCODE -eq 0 -and $testJsonContent) {
+                $testJson = $testJsonContent | ConvertFrom-Json
+                Write-Host "Build $($testJson.build) found on test account."
+
+                # Check if it already exists on production
+                Write-Host "Checking if build exists on production account ($rcloneProdRemote)..."
+                $prodJsonPath = "$rcloneProdRemote`:$name/$name.iso.json"
+                try {
+                    $prodJsonContent = & $env:RCLONE_PATH cat $prodJsonPath 2>$null
+                    if ($LASTEXITCODE -eq 0 -and $prodJsonContent) {
+                        $prodJson = $prodJsonContent | ConvertFrom-Json
+                        if ($prodJson.build -eq $testJson.build) {
+                            Write-Host "Build $($testJson.build) already exists on production account. Skipping copy."
+                        } else {
+                            Write-Host "Production has build $($prodJson.build), test has build $($testJson.build). Copying from test to production..."
+                            Copy-FromTestToProduction $name $rcloneRemote $rcloneProdRemote
+                        }
+                    } else {
+                        Write-Host "Build not found on production account. Copying from test to production..."
+                        Copy-FromTestToProduction $name $rcloneRemote $rcloneProdRemote
+                    }
+                } catch {
+                    Write-Host "Failed to check production account. Copying from test to production..."
+                    Copy-FromTestToProduction $name $rcloneRemote $rcloneProdRemote
+                }
+            } else {
+                Write-Host "Build not found on test account. Skipping production copy."
+            }
+        } catch {
+            Write-Host "Failed to check test account. Skipping production copy."
+        }
+    }
+
     Write-Host 'All Done.'
 }
 
-Get-WindowsIso $windowsTargetName $destinationDirectory
+if ($copyOnly) {
+    if (!$rcloneProdRemote) {
+        throw "Copy-only mode requires -rcloneProdRemote parameter"
+    }
+    Copy-OnlyMode $windowsTargetName $rcloneRemote $rcloneProdRemote $destinationDirectory
+} else {
+    Get-WindowsIso $windowsTargetName $destinationDirectory
+}
