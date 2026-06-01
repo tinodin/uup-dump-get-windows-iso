@@ -84,19 +84,19 @@ jobs:
         shell: pwsh
         run: |
           $iso = & "$env:RCLONE_PATH" cat "gdrive-prod:25H2/25H2.iso.json" 2>$null
-          if ($LASTEXITCODE -eq 0 -and $iso) {
-            $isoObj = $iso | ConvertFrom-Json
-            Add-Content $env:GITHUB_STEP_SUMMARY @"
-            | Property | Value |
-            | :--- | :--- |
-            | Mode | Copy-only |
-            | Name | $($isoObj.name) |
-            | Build | $($isoObj.build) |
-            | Checksum | $($isoObj.checksum) |
-            | Image Name | $($isoObj.images[0].name) |
-            | Source | gdrive-test |
-            | Destination | gdrive-prod |
-            "@
-          } else {
+          if ($LASTEXITCODE -ne 0 -or -not $iso) {
             Add-Content $env:GITHUB_STEP_SUMMARY "Copy-only mode completed. Check production drive for details."
+            exit 0
           }
+          $isoObj = $iso | ConvertFrom-Json
+          Add-Content $env:GITHUB_STEP_SUMMARY @"
+          | Property | Value |
+          | :--- | :--- |
+          | Mode | Copy-only |
+          | Name | $($isoObj.name) |
+          | Build | $($isoObj.build) |
+          | Checksum | $($isoObj.checksum) |
+          | Image Name | $($isoObj.images[0].name) |
+          | Source | gdrive-test |
+          | Destination | gdrive-prod |
+          "@
