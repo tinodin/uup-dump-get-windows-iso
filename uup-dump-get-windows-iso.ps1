@@ -309,34 +309,33 @@ function Get-IsoWindowsImages($isoPath) {
     }
 }
 
-function Upload-ToRclone($localPath, $remotePath) {
+function Invoke-RcloneCopy([string]$source, [string]$destination, [string]$label) {
+    if (!$env:RCLONE_PATH) {
+        throw "RCLONE_PATH not set."
+    }
+    Write-Host $label
+    & $env:RCLONE_PATH copy $source $destination --progress --stats 5s --stats-one-line
+    if ($LASTEXITCODE -ne 0) {
+        throw "rclone copy failed ($label): $source -> $destination"
+    }
+    Write-Host "Done: $label"
+}
+
+function Upload-ToRclone($localPath, $remotePath, [string]$label = $null) {
     if (!$env:RCLONE_PATH) {
         Write-Host "RCLONE_PATH not set. Skipping upload of $localPath"
         return
     }
-    Write-Host "Uploading $localPath to $remotePath"
-    & $env:RCLONE_PATH copy $localPath $remotePath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to upload $localPath to $remotePath"
+    if (!$label) {
+        $label = "Uploading $localPath to $remotePath"
     }
+    Invoke-RcloneCopy $localPath $remotePath $label
 }
 
 function Copy-FromTestToProduction($name, $testRemote, $prodRemote) {
-    Write-Host "Copying ISO from $testRemote to $prodRemote..."
-    & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso" "$prodRemote`:$name/"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to copy ISO from test to production"
-    }
-    Write-Host "Copying metadata from $testRemote to $prodRemote..."
-    & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso.json" "$prodRemote`:$name/"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to copy metadata from test to production"
-    }
-    Write-Host "Copying checksum from $testRemote to $prodRemote..."
-    & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso.sha256.txt" "$prodRemote`:$name/"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to copy checksum from test to production"
-    }
+    Invoke-RcloneCopy "$testRemote`:$name/$name.iso" "$prodRemote`:$name/" "Copying (1/3) $name.iso from $testRemote to $prodRemote"
+    Invoke-RcloneCopy "$testRemote`:$name/$name.iso.json" "$prodRemote`:$name/" "Copying (2/3) $name.iso.json from $testRemote to $prodRemote"
+    Invoke-RcloneCopy "$testRemote`:$name/$name.iso.sha256.txt" "$prodRemote`:$name/" "Copying (3/3) $name.iso.sha256.txt from $testRemote to $prodRemote"
     Write-Host "Copy from test to production complete."
 }
 
@@ -384,33 +383,18 @@ function Copy-OnlyMode($name, $testRemote, $prodRemote, $destinationDirectory) {
         }
         New-Item -ItemType Directory -Force $buildDirectory | Out-Null
 
-        Write-Host "Downloading ISO from test account..."
-        & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso" "$buildDirectory/"
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to download ISO from test account"
-        }
+        Invoke-RcloneCopy "$testRemote`:$name/$name.iso" "$buildDirectory/" "Downloading (1/3) $name.iso from $testRemote"
+        Invoke-RcloneCopy "$testRemote`:$name/$name.iso.json" "$buildDirectory/" "Downloading (2/3) $name.iso.json from $testRemote"
+        Invoke-RcloneCopy "$testRemote`:$name/$name.iso.sha256.txt" "$buildDirectory/" "Downloading (3/3) $name.iso.sha256.txt from $testRemote"
 
-        Write-Host "Downloading metadata from test account..."
-        & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso.json" "$buildDirectory/"
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to download metadata from test account"
-        }
-
-        Write-Host "Downloading checksum from test account..."
-        & $env:RCLONE_PATH copy "$testRemote`:$name/$name.iso.sha256.txt" "$buildDirectory/"
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to download checksum from test account"
-        }
-
-        # Upload to production
-        Write-Host "Uploading to production account..."
+        Write-Host "Uploading to production account ($prodRemote)..."
         $localIsoPath = "$buildDirectory/$name.iso"
         $localJsonPath = "$buildDirectory/$name.iso.json"
         $localChecksumPath = "$buildDirectory/$name.iso.sha256.txt"
 
-        Upload-ToRclone $localIsoPath "$prodRemote`:$name/"
-        Upload-ToRclone $localJsonPath "$prodRemote`:$name/"
-        Upload-ToRclone $localChecksumPath "$prodRemote`:$name/"
+        Upload-ToRclone $localIsoPath "$prodRemote`:$name/" "Uploading (1/3) $name.iso to $prodRemote"
+        Upload-ToRclone $localJsonPath "$prodRemote`:$name/" "Uploading (2/3) $name.iso.json to $prodRemote"
+        Upload-ToRclone $localChecksumPath "$prodRemote`:$name/" "Uploading (3/3) $name.iso.sha256.txt to $prodRemote"
 
         Write-Host "Copy from test to production complete."
 
