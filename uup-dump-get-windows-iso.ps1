@@ -20,7 +20,7 @@ trap {
 $TARGETS = @{
     "25H2" = @{
         search = "windows 11 26200 amd64"
-        id = "e88cc24c-8170-492e-a36e-92c5143afbde"
+        id = "cde62503-0f96-4273-8a1e-d25b94fe30ad"
         edition = "Professional"
         virtualEdition = $null
         ring = "RP"
