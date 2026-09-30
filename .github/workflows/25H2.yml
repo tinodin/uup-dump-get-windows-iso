@@ -1,4 +1,4 @@
-name: 25H2
+name: 26H2
 
 on:
   workflow_dispatch:
