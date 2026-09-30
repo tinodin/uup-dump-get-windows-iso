@@ -58,9 +58,9 @@ jobs:
           $rcloneRemote = "gdrive-test"
           $rcloneProdRemote = "gdrive-prod"
           if ($mode -eq "copy-only") {
-            pwsh uup-dump-get-windows-iso.ps1 25H2 c:/output -rcloneRemote $rcloneRemote -rcloneProdRemote $rcloneProdRemote -copyOnly
+            pwsh uup-dump-get-windows-iso.ps1 26H2 c:/output -rcloneRemote $rcloneRemote -rcloneProdRemote $rcloneProdRemote -copyOnly
           } else {
-            pwsh uup-dump-get-windows-iso.ps1 25H2 c:/output -rcloneRemote $rcloneRemote
+            pwsh uup-dump-get-windows-iso.ps1 26H2 c:/output -rcloneRemote $rcloneRemote
           }
 
       - name: Show available disk space after build
@@ -83,7 +83,7 @@ jobs:
         if: github.event.inputs.mode == 'copy-only'
         shell: pwsh
         run: |
-          $iso = & "$env:RCLONE_PATH" cat "gdrive-prod:25H2/25H2.iso.json" 2>$null
+          $iso = & "$env:RCLONE_PATH" cat "gdrive-prod:26H2/26H2.iso.json" 2>$null
           if ($LASTEXITCODE -ne 0 -or -not $iso) {
             Add-Content $env:GITHUB_STEP_SUMMARY "Copy-only mode completed. Check production drive for details."
             exit 0
