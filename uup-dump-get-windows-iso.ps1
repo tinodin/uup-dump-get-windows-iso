@@ -18,8 +18,8 @@ trap {
 }
 
 $TARGETS = @{
-    "25H2" = @{
-        search = "windows 11 26200 amd64"
+    "26H2" = @{
+        search = "windows 11 26300 amd64"
         id = $null
         edition = "Professional"
         virtualEdition = $null
